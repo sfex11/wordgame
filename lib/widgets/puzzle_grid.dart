@@ -42,25 +42,101 @@ class PuzzleGrid extends StatelessWidget {
             final col = index % puzzle.gridSize;
             final cell = puzzle.grid[row][col];
 
-            return _buildCell(cell, row, col);
+            return _AnimatedCell(
+              cell: cell,
+              row: row,
+              col: col,
+              isSelected: puzzle.selectedRow == row && puzzle.selectedCol == col,
+              onTap: onCellTap,
+            );
           },
         ),
       ),
     );
   }
+}
 
-  Widget _buildCell(Cell cell, int row, int col) {
-    if (cell.isEmpty) {
-      return const SizedBox();
+class _AnimatedCell extends StatefulWidget {
+  final Cell cell;
+  final int row;
+  final int col;
+  final bool isSelected;
+  final Function(int row, int col) onTap;
+
+  const _AnimatedCell({
+    required this.cell,
+    required this.row,
+    required this.col,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  @override
+  State<_AnimatedCell> createState() => _AnimatedCellState();
+}
+
+class _AnimatedCellState extends State<_AnimatedCell>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _scaleAnimation;
+  late Animation<double> _bounceAnimation;
+  CellState? _previousState;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.9).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+    );
+
+    _bounceAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
+      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
+    );
+
+    _previousState = widget.cell.state;
+  }
+
+  @override
+  void didUpdateWidget(_AnimatedCell oldWidget) {
+    super.didUpdateWidget(oldWidget);
+
+    // 상태가 correct로 변경되면 바운스 애니메이션
+    if (widget.cell.state == CellState.correct &&
+        _previousState != CellState.correct) {
+      _controller.forward().then((_) => _controller.reverse());
     }
 
-    final isSelected = puzzle.selectedRow == row && puzzle.selectedCol == col;
+    // 상태가 filled로 변경되면 작은 펄스
+    if (widget.cell.state == CellState.filled &&
+        _previousState == CellState.blank) {
+      _controller.forward().then((_) => _controller.reverse());
+    }
+
+    _previousState = widget.cell.state;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.cell.isEmpty) {
+      return const SizedBox();
+    }
 
     Color backgroundColor;
     Color textColor;
     Color borderColor;
 
-    switch (cell.state) {
+    switch (widget.cell.state) {
       case CellState.hint:
         backgroundColor = const Color(0xFFE8F5E9);
         textColor = const Color(0xFF4CAF50);
@@ -69,12 +145,14 @@ class PuzzleGrid extends StatelessWidget {
       case CellState.blank:
         backgroundColor = const Color(0xFFE3F2FD);
         textColor = Colors.transparent;
-        borderColor = isSelected ? const Color(0xFFFF9800) : const Color(0xFF2196F3);
+        borderColor =
+            widget.isSelected ? const Color(0xFFFF9800) : const Color(0xFF2196F3);
         break;
       case CellState.filled:
         backgroundColor = const Color(0xFFFFF8E1);
         textColor = const Color(0xFFFF9800);
-        borderColor = isSelected ? const Color(0xFFFF9800) : const Color(0xFFFFB74D);
+        borderColor =
+            widget.isSelected ? const Color(0xFFFF9800) : const Color(0xFFFFB74D);
         break;
       case CellState.correct:
         backgroundColor = const Color(0xFFC8E6C9);
@@ -93,33 +171,55 @@ class PuzzleGrid extends StatelessWidget {
     }
 
     return GestureDetector(
-      onTap: cell.isSelectable ? () => onCellTap(row, col) : null,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: borderColor,
-            width: isSelected ? 3 : 2,
+      onTap: widget.cell.isSelectable ? () => widget.onTap(widget.row, widget.col) : null,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          final scale = widget.cell.state == CellState.correct
+              ? _bounceAnimation.value
+              : _scaleAnimation.value;
+
+          return Transform.scale(
+            scale: scale,
+            child: child,
+          );
+        },
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: borderColor,
+              width: widget.isSelected ? 3 : 2,
+            ),
+            boxShadow: widget.isSelected
+                ? [
+                    BoxShadow(
+                      color: borderColor.withOpacity(0.4),
+                      blurRadius: 8,
+                      spreadRadius: 1,
+                    ),
+                  ]
+                : widget.cell.state == CellState.correct
+                    ? [
+                        BoxShadow(
+                          color: const Color(0xFF4CAF50).withOpacity(0.3),
+                          blurRadius: 6,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
           ),
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: borderColor.withOpacity(0.4),
-                    blurRadius: 8,
-                    spreadRadius: 1,
-                  ),
-                ]
-              : null,
-        ),
-        child: Center(
-          child: Text(
-            cell.displayLetter,
-            style: TextStyle(
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-              color: textColor,
+          child: Center(
+            child: AnimatedDefaultTextStyle(
+              duration: const Duration(milliseconds: 200),
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: textColor,
+              ),
+              child: Text(widget.cell.displayLetter),
             ),
           ),
         ),
