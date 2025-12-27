@@ -3,9 +3,18 @@ import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
 import 'screens/splash_screen.dart';
 import 'providers/game_provider.dart';
+import 'services/audio_service.dart';
+import 'services/ad_service.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 오디오 서비스 초기화
+  await AudioService().initialize();
+
+  // 광고 서비스 초기화 (테스트 모드)
+  await AdService().initialize(testMode: true);
+
   runApp(const WordBujaApp());
 }
 

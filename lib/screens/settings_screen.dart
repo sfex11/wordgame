@@ -1,9 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
+import '../services/audio_service.dart';
+import '../services/ad_service.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  final AudioService _audioService = AudioService();
+  final AdService _adService = AdService();
 
   @override
   Widget build(BuildContext context) {
@@ -28,12 +38,34 @@ class SettingsScreen extends StatelessWidget {
                     value: provider.gameState.bgmEnabled,
                     onChanged: (_) => provider.toggleBgm(),
                   ),
+                  if (provider.gameState.bgmEnabled)
+                    _buildVolumeTile(
+                      icon: Icons.music_note_outlined,
+                      title: '배경음악 볼륨',
+                      value: _audioService.bgmVolume,
+                      onChanged: (value) {
+                        setState(() {
+                          _audioService.setBgmVolume(value);
+                        });
+                      },
+                    ),
                   _buildSwitchTile(
                     icon: Icons.volume_up,
                     title: '효과음',
                     value: provider.gameState.sfxEnabled,
                     onChanged: (_) => provider.toggleSfx(),
                   ),
+                  if (provider.gameState.sfxEnabled)
+                    _buildVolumeTile(
+                      icon: Icons.volume_up_outlined,
+                      title: '효과음 볼륨',
+                      value: _audioService.sfxVolume,
+                      onChanged: (value) {
+                        setState(() {
+                          _audioService.setSfxVolume(value);
+                        });
+                      },
+                    ),
                 ],
               ),
 
@@ -67,6 +99,34 @@ class SettingsScreen extends StatelessWidget {
                     icon: Icons.local_fire_department,
                     title: '연속 출석',
                     value: '${provider.gameState.dailyStreak}일',
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 24),
+
+              // 무료 코인
+              _buildSection(
+                title: '무료 코인',
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.play_circle_filled, color: Color(0xFFFFD700)),
+                    title: const Text('광고 보고 코인 받기'),
+                    subtitle: Text(
+                      _adService.canShowRewarded()
+                          ? '50코인 획득 가능'
+                          : '${_adService.rewardedCooldownRemaining}초 후 가능',
+                    ),
+                    trailing: ElevatedButton(
+                      onPressed: _adService.canShowRewarded()
+                          ? () => _showRewardedAd(context, provider)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFFD700),
+                        foregroundColor: Colors.black,
+                      ),
+                      child: const Text('시청'),
+                    ),
                   ),
                 ],
               ),
@@ -170,6 +230,81 @@ class SettingsScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  Widget _buildVolumeTile({
+    required IconData icon,
+    required String title,
+    required double value,
+    required ValueChanged<double> onChanged,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF4CAF50), size: 24),
+          const SizedBox(width: 16),
+          Text(title, style: const TextStyle(fontSize: 14)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Slider(
+              value: value,
+              min: 0,
+              max: 1,
+              divisions: 10,
+              activeColor: const Color(0xFF4CAF50),
+              onChanged: onChanged,
+            ),
+          ),
+          SizedBox(
+            width: 40,
+            child: Text(
+              '${(value * 100).toInt()}%',
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.right,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRewardedAd(BuildContext context, GameProvider provider) async {
+    final success = await _adService.showRewardedAd(
+      onRewarded: (amount) {
+        provider.addCoins(amount);
+        _audioService.playSfx(AudioService.sfxCoinEarn);
+
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.monetization_on, color: Colors.amber),
+                  const SizedBox(width: 8),
+                  Text('$amount 코인을 획득했습니다!'),
+                ],
+              ),
+              backgroundColor: const Color(0xFF4CAF50),
+            ),
+          );
+        }
+      },
+    );
+
+    if (!success && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('광고를 불러올 수 없습니다. 잠시 후 다시 시도해주세요.'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+
+    setState(() {});
   }
 
   void _showResetConfirmation(BuildContext context, GameProvider provider) {

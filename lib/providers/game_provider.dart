@@ -2,11 +2,13 @@ import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../services/game_service.dart';
 import '../services/storage_service.dart';
+import '../services/audio_service.dart';
 import '../data/level_config.dart';
 
 /// 게임 상태 관리 Provider
 class GameProvider extends ChangeNotifier {
   final GameService _gameService = GameService();
+  final AudioService _audioService = AudioService();
   StorageService? _storageService;
 
   GameState _gameState = const GameState();
@@ -27,6 +29,15 @@ class GameProvider extends ChangeNotifier {
 
     _storageService = await StorageService.getInstance();
     _gameState = _storageService!.loadGameState();
+
+    // 오디오 설정 로드
+    _audioService.loadSettings(
+      bgmEnabled: _gameState.bgmEnabled,
+      sfxEnabled: _gameState.sfxEnabled,
+    );
+
+    // 메인 BGM 시작
+    _audioService.playBgm(AudioService.bgmMain);
 
     // 출석 체크
     await _checkDailyAttendance();
@@ -83,6 +94,10 @@ class GameProvider extends ChangeNotifier {
     );
     _hintsUsed = 0;
     _gameState = _gameState.copyWith(currentLevel: level);
+
+    // 게임 BGM으로 전환
+    _audioService.playBgm(AudioService.bgmGame);
+
     notifyListeners();
   }
 
@@ -106,7 +121,16 @@ class GameProvider extends ChangeNotifier {
   void placeLetter(String letter) {
     if (_currentPuzzle == null) return;
 
+    final prevCompletedWords = _currentPuzzle!.completedWordCount;
     _currentPuzzle = _gameService.placeLetter(_currentPuzzle!, letter);
+
+    // 글자 배치 효과음
+    _audioService.playSfx(AudioService.sfxLetterPlace);
+
+    // 단어 완성 체크
+    if (_currentPuzzle!.completedWordCount > prevCompletedWords) {
+      _audioService.playSfx(AudioService.sfxWordComplete);
+    }
 
     // 퍼즐 완료 체크
     if (_currentPuzzle!.isCompleted) {
@@ -157,8 +181,19 @@ class GameProvider extends ChangeNotifier {
       maxUnlockedLevel: newMaxLevel,
     );
 
+    // 레벨 완료 효과음 및 BGM
+    _audioService.playSfx(AudioService.sfxLevelComplete);
+    _audioService.playBgm(AudioService.bgmVictory);
+
     // 자동 저장
     _saveGameState();
+  }
+
+  /// 홈으로 돌아갈 때 메인 BGM으로 복귀
+  void returnToHome() {
+    _currentPuzzle = null;
+    _audioService.playBgm(AudioService.bgmMain);
+    notifyListeners();
   }
 
   /// 힌트: 글자 공개
@@ -171,6 +206,9 @@ class GameProvider extends ChangeNotifier {
     _gameState = _gameState.copyWith(
       totalCoins: _gameState.totalCoins - 10,
     );
+
+    _audioService.playSfx(AudioService.sfxHintUse);
+
     _saveGameState();
     notifyListeners();
   }
@@ -191,6 +229,9 @@ class GameProvider extends ChangeNotifier {
     _gameState = _gameState.copyWith(
       totalCoins: _gameState.totalCoins - 5,
     );
+
+    _audioService.playSfx(AudioService.sfxHintUse);
+
     _saveGameState();
     notifyListeners();
   }
@@ -232,6 +273,9 @@ class GameProvider extends ChangeNotifier {
       totalCoins: _gameState.totalCoins - price,
       unlockedItems: newItems,
     );
+
+    _audioService.playSfx(AudioService.sfxPurchase);
+
     _saveGameState();
     notifyListeners();
     return true;
@@ -248,6 +292,9 @@ class GameProvider extends ChangeNotifier {
       totalCoins: _gameState.totalCoins - price,
       unlockedCharacters: newCharacters,
     );
+
+    _audioService.playSfx(AudioService.sfxUnlock);
+
     _saveGameState();
     notifyListeners();
     return true;
@@ -265,12 +312,14 @@ class GameProvider extends ChangeNotifier {
   /// 설정 변경
   void toggleSfx() {
     _gameState = _gameState.copyWith(sfxEnabled: !_gameState.sfxEnabled);
+    _audioService.setSfxEnabled(_gameState.sfxEnabled);
     _saveGameState();
     notifyListeners();
   }
 
   void toggleBgm() {
     _gameState = _gameState.copyWith(bgmEnabled: !_gameState.bgmEnabled);
+    _audioService.setBgmEnabled(_gameState.bgmEnabled);
     _saveGameState();
     notifyListeners();
   }
