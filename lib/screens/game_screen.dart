@@ -5,10 +5,18 @@ import '../models/models.dart';
 import '../widgets/puzzle_grid.dart';
 import '../widgets/letter_bank.dart';
 import '../widgets/hint_buttons.dart';
+import '../widgets/meaning_popup.dart';
 import 'level_complete_dialog.dart';
 
-class GameScreen extends StatelessWidget {
+class GameScreen extends StatefulWidget {
   const GameScreen({super.key});
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  bool _dialogShown = false;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +42,8 @@ class GameScreen extends StatelessWidget {
               }
 
               // 레벨 완료 체크
-              if (puzzle.isCompleted) {
+              if (puzzle.isCompleted && !_dialogShown) {
+                _dialogShown = true;
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   _showLevelCompleteDialog(context, puzzle);
                 });
@@ -71,9 +80,7 @@ class GameScreen extends StatelessWidget {
                   HintButtons(
                     coins: provider.gameState.totalCoins,
                     onRevealLetter: () => provider.useHintRevealLetter(),
-                    onShowMeaning: () {
-                      // TODO: 뜻풀이 팝업
-                    },
+                    onShowMeaning: () => _showMeaningHint(context, provider, puzzle),
                     onShowWrong: () => provider.useHintShowWrong(),
                   ),
 
@@ -182,6 +189,61 @@ class GameScreen extends StatelessWidget {
             valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFF4CAF50)),
             minHeight: 8,
             borderRadius: BorderRadius.circular(4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showMeaningHint(BuildContext context, GameProvider provider, Puzzle puzzle) {
+    // 선택된 셀이 있으면 해당 단어의 뜻 표시
+    if (puzzle.selectedRow != null && puzzle.selectedCol != null) {
+      final cell = puzzle.grid[puzzle.selectedRow!][puzzle.selectedCol!];
+      if (cell.wordIndices.isNotEmpty) {
+        final wordIndex = cell.wordIndices.first;
+        final word = puzzle.words[wordIndex];
+
+        if (provider.gameState.totalCoins >= 5) {
+          provider.addCoins(-5);
+          MeaningPopup.show(context, word.text, word.meaning);
+        } else {
+          _showInsufficientCoinsDialog(context);
+        }
+        return;
+      }
+    }
+
+    // 선택된 셀이 없으면 미완성 단어 중 하나의 뜻 표시
+    for (final word in puzzle.words) {
+      if (!word.isCompleted) {
+        if (provider.gameState.totalCoins >= 5) {
+          provider.addCoins(-5);
+          MeaningPopup.show(context, '???', word.meaning);
+        } else {
+          _showInsufficientCoinsDialog(context);
+        }
+        return;
+      }
+    }
+  }
+
+  void _showInsufficientCoinsDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.monetization_on, color: Colors.grey),
+            SizedBox(width: 8),
+            Text('코인 부족'),
+          ],
+        ),
+        content: const Text('힌트를 사용하려면 코인이 필요합니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('확인'),
           ),
         ],
       ),

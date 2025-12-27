@@ -4,6 +4,8 @@ import '../providers/game_provider.dart';
 import 'game_screen.dart';
 import 'level_select_screen.dart';
 import 'daily_challenge_screen.dart';
+import 'word_book_screen.dart';
+import 'settings_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -198,16 +200,19 @@ class HomeScreen extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // 설정 버튼
+          // 하단 버튼
           Row(
             children: [
               Expanded(
                 child: _buildSmallButton(
                   context,
-                  Icons.volume_up,
-                  '사운드',
+                  Icons.settings,
+                  '설정',
                   () {
-                    // 사운드 설정
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const SettingsScreen()),
+                    );
                   },
                 ),
               ),
@@ -218,7 +223,10 @@ class HomeScreen extends StatelessWidget {
                   Icons.book,
                   '단어장',
                   () {
-                    // 단어장
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const WordBookScreen()),
+                    );
                   },
                 ),
               ),
