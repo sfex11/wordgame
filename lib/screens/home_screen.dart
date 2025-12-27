@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../providers/game_provider.dart';
 import 'game_screen.dart';
 import 'level_select_screen.dart';
+import 'daily_challenge_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -176,6 +177,21 @@ class HomeScreen extends StatelessWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const LevelSelectScreen()),
+              );
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // 일일 도전 버튼
+          _buildButton(
+            context,
+            '오늘의 도전',
+            const Color(0xFFFF9800),
+            () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DailyChallengeScreen()),
               );
             },
           ),

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'screens/home_screen.dart';
+import 'screens/splash_screen.dart';
 import 'providers/game_provider.dart';
 
 void main() {
+  WidgetsFlutterBinding.ensureInitialized();
   runApp(const WordBujaApp());
 }
 
@@ -25,7 +27,7 @@ class WordBujaApp extends StatelessWidget {
           useMaterial3: true,
           fontFamily: 'Pretendard',
         ),
-        home: const HomeScreen(),
+        home: const SplashScreen(),
       ),
     );
   }

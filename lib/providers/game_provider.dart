@@ -1,22 +1,86 @@
 import 'package:flutter/foundation.dart';
 import '../models/models.dart';
 import '../services/game_service.dart';
+import '../services/storage_service.dart';
+import '../data/level_config.dart';
 
 /// 게임 상태 관리 Provider
 class GameProvider extends ChangeNotifier {
   final GameService _gameService = GameService();
+  StorageService? _storageService;
 
   GameState _gameState = const GameState();
   Puzzle? _currentPuzzle;
   int _hintsUsed = 0;
+  bool _isInitialized = false;
+  int _attendanceReward = 0; // 오늘 받을 출석 보상
 
   GameState get gameState => _gameState;
   Puzzle? get currentPuzzle => _currentPuzzle;
   int get hintsUsed => _hintsUsed;
+  bool get isInitialized => _isInitialized;
+  int get attendanceReward => _attendanceReward;
+
+  /// 초기화 (앱 시작 시 호출)
+  Future<void> initialize() async {
+    if (_isInitialized) return;
+
+    _storageService = await StorageService.getInstance();
+    _gameState = _storageService!.loadGameState();
+
+    // 출석 체크
+    await _checkDailyAttendance();
+
+    _isInitialized = true;
+    notifyListeners();
+  }
+
+  /// 일일 출석 체크
+  Future<void> _checkDailyAttendance() async {
+    if (_storageService == null) return;
+
+    final newStreak = await _storageService!.checkDailyAttendance(_gameState);
+
+    if (newStreak > 0) {
+      // 오늘 첫 접속
+      _attendanceReward = _storageService!.calculateAttendanceReward(newStreak);
+
+      _gameState = _gameState.copyWith(
+        dailyStreak: newStreak,
+        lastPlayDate: DateTime.now(),
+      );
+    } else {
+      // 오늘 이미 접속함
+      _attendanceReward = 0;
+    }
+  }
+
+  /// 출석 보상 수령
+  void claimAttendanceReward() {
+    if (_attendanceReward > 0) {
+      _gameState = _gameState.copyWith(
+        totalCoins: _gameState.totalCoins + _attendanceReward,
+      );
+      _attendanceReward = 0;
+      _saveGameState();
+      notifyListeners();
+    }
+  }
+
+  /// 게임 상태 저장
+  Future<void> _saveGameState() async {
+    await _storageService?.saveGameState(_gameState);
+  }
 
   /// 레벨 시작
   void startLevel(int level) {
-    _currentPuzzle = _gameService.startLevel(level);
+    final config = getLevelConfig(level);
+    _currentPuzzle = _gameService.startLevelWithConfig(
+      level,
+      config.wordCount,
+      config.gridSize,
+      config.hintPercent,
+    );
     _hintsUsed = 0;
     _gameState = _gameState.copyWith(currentLevel: level);
     notifyListeners();
@@ -54,12 +118,16 @@ class GameProvider extends ChangeNotifier {
 
   /// 레벨 완료 처리
   void _onLevelComplete() {
+    final level = _currentPuzzle!.level;
+    final config = getLevelConfig(level);
+
     final score = _gameService.calculateLevelScore(
       _currentPuzzle!,
       hintsUsed: _hintsUsed,
     );
-    final coins = _gameService.calculateCoins(score);
-    final level = _currentPuzzle!.level;
+
+    // 기본 보상 + 점수 보상
+    final coins = config.clearReward + _gameService.calculateCoins(score);
 
     // 수집한 단어들 추가
     List<String> newCollectedWords = List.from(_gameState.collectedWords);
@@ -88,6 +156,9 @@ class GameProvider extends ChangeNotifier {
       collectedWords: newCollectedWords,
       maxUnlockedLevel: newMaxLevel,
     );
+
+    // 자동 저장
+    _saveGameState();
   }
 
   /// 힌트: 글자 공개
@@ -100,6 +171,7 @@ class GameProvider extends ChangeNotifier {
     _gameState = _gameState.copyWith(
       totalCoins: _gameState.totalCoins - 10,
     );
+    _saveGameState();
     notifyListeners();
   }
 
@@ -119,6 +191,7 @@ class GameProvider extends ChangeNotifier {
     _gameState = _gameState.copyWith(
       totalCoins: _gameState.totalCoins - 5,
     );
+    _saveGameState();
     notifyListeners();
   }
 
@@ -128,6 +201,15 @@ class GameProvider extends ChangeNotifier {
 
     List<String> newWrongWords = List.from(_gameState.wrongWords)..add(word);
     _gameState = _gameState.copyWith(wrongWords: newWrongWords);
+    _saveGameState();
+    notifyListeners();
+  }
+
+  /// 오답 단어 제거 (복습 완료)
+  void removeWrongWord(String word) {
+    List<String> newWrongWords = List.from(_gameState.wrongWords)..remove(word);
+    _gameState = _gameState.copyWith(wrongWords: newWrongWords);
+    _saveGameState();
     notifyListeners();
   }
 
@@ -136,17 +218,69 @@ class GameProvider extends ChangeNotifier {
     _gameState = _gameState.copyWith(
       totalCoins: _gameState.totalCoins + amount,
     );
+    _saveGameState();
+    notifyListeners();
+  }
+
+  /// 아이템 구매
+  bool purchaseItem(String itemId, int price) {
+    if (_gameState.totalCoins < price) return false;
+    if (_gameState.unlockedItems.contains(itemId)) return false;
+
+    List<String> newItems = List.from(_gameState.unlockedItems)..add(itemId);
+    _gameState = _gameState.copyWith(
+      totalCoins: _gameState.totalCoins - price,
+      unlockedItems: newItems,
+    );
+    _saveGameState();
+    notifyListeners();
+    return true;
+  }
+
+  /// 캐릭터 해금
+  bool unlockCharacter(String characterId, int price) {
+    if (_gameState.totalCoins < price) return false;
+    if (_gameState.unlockedCharacters.contains(characterId)) return false;
+
+    List<String> newCharacters = List.from(_gameState.unlockedCharacters)
+      ..add(characterId);
+    _gameState = _gameState.copyWith(
+      totalCoins: _gameState.totalCoins - price,
+      unlockedCharacters: newCharacters,
+    );
+    _saveGameState();
+    notifyListeners();
+    return true;
+  }
+
+  /// 캐릭터 선택
+  void selectCharacter(String characterId) {
+    if (!_gameState.unlockedCharacters.contains(characterId)) return;
+
+    _gameState = _gameState.copyWith(selectedCharacter: characterId);
+    _saveGameState();
     notifyListeners();
   }
 
   /// 설정 변경
   void toggleSfx() {
     _gameState = _gameState.copyWith(sfxEnabled: !_gameState.sfxEnabled);
+    _saveGameState();
     notifyListeners();
   }
 
   void toggleBgm() {
     _gameState = _gameState.copyWith(bgmEnabled: !_gameState.bgmEnabled);
+    _saveGameState();
+    notifyListeners();
+  }
+
+  /// 데이터 초기화
+  Future<void> resetAllData() async {
+    await _storageService?.clearAllData();
+    _gameState = const GameState();
+    _currentPuzzle = null;
+    _hintsUsed = 0;
     notifyListeners();
   }
 }

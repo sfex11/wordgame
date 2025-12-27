@@ -10,6 +10,21 @@ class GameService {
     return _generator.generatePuzzle(level);
   }
 
+  /// 설정으로 퍼즐 시작
+  Puzzle startLevelWithConfig(
+    int level,
+    int wordCount,
+    int gridSize,
+    int hintPercent,
+  ) {
+    return _generator.generatePuzzleWithConfig(
+      level,
+      wordCount,
+      gridSize,
+      hintPercent,
+    );
+  }
+
   /// 셀 선택
   Puzzle selectCell(Puzzle puzzle, int row, int col) {
     final cell = puzzle.grid[row][col];

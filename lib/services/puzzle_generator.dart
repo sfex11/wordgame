@@ -27,10 +27,21 @@ class PuzzleGenerator {
   /// 퍼즐 생성
   Puzzle generatePuzzle(int level) {
     final config = getConfigForLevel(level);
-    final int wordCount = config['words']!;
-    final int gridSize = config['gridSize']!;
-    final int hintPercent = config['hintPercent']!;
+    return generatePuzzleWithConfig(
+      level,
+      config['words']!,
+      config['gridSize']!,
+      config['hintPercent']!,
+    );
+  }
 
+  /// 설정으로 퍼즐 생성
+  Puzzle generatePuzzleWithConfig(
+    int level,
+    int wordCount,
+    int gridSize,
+    int hintPercent,
+  ) {
     // 단어 선택
     final selectedWords = _selectWords(wordCount);
 
