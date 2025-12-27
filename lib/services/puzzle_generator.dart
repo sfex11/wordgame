@@ -49,7 +49,7 @@ class PuzzleGenerator {
     List<PlacedWord>? placedWords;
     List<List<Cell>>? grid;
 
-    for (int attempt = 0; attempt < 100; attempt++) {
+    for (int attempt = 0; attempt < 20; attempt++) {
       final result = _placeWordsOnGrid(selectedWords, gridSize);
       if (result != null) {
         placedWords = result.$1;

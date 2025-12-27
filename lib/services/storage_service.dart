@@ -4,9 +4,9 @@ import '../models/models.dart';
 
 /// 로컬 저장소 서비스
 class StorageService {
-  static const String _gameStateBox = 'game_state';
+  static const String _gameStateBoxName = 'game_state';
   static const String _gameStateKey = 'state';
-  static const String _settingsBox = 'settings';
+  static const String _settingsBoxName = 'settings';
 
   static StorageService? _instance;
   late Box _stateBox;
@@ -24,8 +24,8 @@ class StorageService {
 
   Future<void> _init() async {
     await Hive.initFlutter();
-    _stateBox = await Hive.openBox(_gameStateBox);
-    _settingsBox = await Hive.openBox(_settingsBox);
+    _stateBox = await Hive.openBox(_gameStateBoxName);
+    _settingsBox = await Hive.openBox(_settingsBoxName);
   }
 
   /// 게임 상태 저장
